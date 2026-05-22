@@ -131,11 +131,57 @@ struct CopySyntaxTree : Transformer {
         return new Variable(var->name());
     }
 };
+struct FoldConstants : Transformer {
+    Expression* transformNumber(Number const* number) override {
+        return new Number(number->value());
+    }
+
+    Expression* transformBinaryOperation(BinaryOperation const* binop) override {
+        Expression* newLeft = binop->left()->transform(this);
+        Expression* newRight = binop->right()->transform(this);
+
+        Number* leftNum = dynamic_cast<Number*>(newLeft);
+        Number* rightNum = dynamic_cast<Number*>(newRight);
+
+        if (leftNum && rightNum) {
+            double res;
+            switch (binop->operation()) {
+            case BinaryOperation::PLUS: res = leftNum->value() + rightNum->value(); break;
+            case BinaryOperation::MINUS: res = leftNum->value() - rightNum->value(); break;
+            case BinaryOperation::MUL: res = leftNum->value() * rightNum->value(); break;
+            case BinaryOperation::DIV: res = leftNum->value() / rightNum->value(); break;
+            default: res = 0.0;
+            }
+            delete newLeft;
+            delete newRight;
+            return new Number(res);
+        }
+        return new BinaryOperation(newLeft, binop->operation(), newRight);
+    }
+
+    Expression* transformFunctionCall(FunctionCall const* fcall) override {
+        Expression* newArg = fcall->arg()->transform(this);
+        Number* argNum = dynamic_cast<Number*>(newArg);
+
+        if (argNum) {
+            double val = argNum->value();
+            double res;
+            if (fcall->name() == "sqrt") res = std::sqrt(val);
+            else res = std::fabs(val);
+            delete newArg;
+            return new Number(res);
+        }
+        return new FunctionCall(fcall->name(), newArg);
+    }
+
+    Expression* transformVariable(Variable const* var) override {
+        return new Variable(var->name());
+    }
+};
 
 
 int main() {
     setlocale(LC_ALL, "ru");
-
     Number* n32 = new Number(32.0);
     Number* n16 = new Number(16.0);
     BinaryOperation* minus = new BinaryOperation(n32, BinaryOperation::MINUS, n16);
@@ -144,15 +190,21 @@ int main() {
     BinaryOperation* mult = new BinaryOperation(var, BinaryOperation::MUL, callSqrt);
     FunctionCall* original = new FunctionCall("abs", mult);
 
-    std::cout << "до: evaluate() = " << original->evaluate() << std::endl;
-
     CopySyntaxTree cst;
     Expression* copy = original->transform(&cst);
 
-    std::cout << "после: evaluate() = " << copy->evaluate() << std::endl;
+    std::cout << "оригинал: " << original->evaluate() << std::endl;
+    std::cout << "копия: " << copy->evaluate() << std::endl;
+
+    FoldConstants fc;
+    Expression* folded = original->transform(&fc);
+
+    std::cout << "до: " << original->evaluate() << std::endl;
+    std::cout << "после: " << folded->evaluate() << std::endl;
 
     delete original;
     delete copy;
+    delete folded;
 
     return 0;
 }
