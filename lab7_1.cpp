@@ -2,6 +2,7 @@
 #include <string>
 #include <cmath>
 #include <cassert>
+#include <vector>
 
 
 struct Transformer;
@@ -178,7 +179,66 @@ struct FoldConstants : Transformer {
         return new Variable(var->name());
     }
 };
+    struct PrintStrategy {
+        virtual ~PrintStrategy() {}
+        virtual void print(std::ostream& os, const std::vector<int>& arr) const = 0;
+    };
 
+    class RowPrintStrategy : public PrintStrategy {
+        size_t elementsPerRow_;
+    public:
+        explicit RowPrintStrategy(size_t n) : elementsPerRow_(n) {}
+
+        void print(std::ostream& os, const std::vector<int>& arr) const override {
+            for (size_t i = 0; i < arr.size(); ++i) {
+                os << arr[i];
+                if ((i + 1) % elementsPerRow_ == 0)
+                    os << '\n';
+                else if (i + 1 != arr.size())
+                    os << ' ';
+            }
+            if (arr.size() % elementsPerRow_ != 0)
+                os << '\n';
+        }
+    };
+
+    class LinePrintStrategy : public PrintStrategy {
+    public:
+        void print(std::ostream& os, const std::vector<int>& arr) const override {
+            for (int x : arr)
+                os << x << '\n';
+        }
+    };
+
+
+    class Array {
+        std::vector<int> data_;
+        PrintStrategy* strategy_;
+
+    public:
+        explicit Array(PrintStrategy* strategy) : strategy_(strategy) {}
+
+        ~Array() {
+            delete strategy_;
+        }
+
+        void add(int value) {
+            data_.push_back(value);
+        }
+
+        void setStrategy(PrintStrategy* strategy) {
+            delete strategy_;
+            strategy_ = strategy;
+        }
+
+        void print(std::ostream& os) const {
+            strategy_->print(os, data_);
+        }
+
+        const std::vector<int>& data() const {
+            return data_;
+        }
+    };
 
 int main() {
     setlocale(LC_ALL, "ru");
@@ -201,6 +261,21 @@ int main() {
 
     std::cout << "до: " << original->evaluate() << std::endl;
     std::cout << "после: " << folded->evaluate() << std::endl;
+
+    Array arr(new RowPrintStrategy(3));
+    for (int i = 1; i <= 10; i++) {
+        arr.add(i);
+    }
+
+    std::cout << "3 элемента:" << std::endl;
+    arr.print(std::cout);
+
+    std::cout << "1 элементу:" << std::endl;
+    Array arr2(new LinePrintStrategy());
+    for (int i = 1; i <= 10; i++) {
+        arr2.add(i);
+    }
+    arr2.print(std::cout);
 
     delete original;
     delete copy;
